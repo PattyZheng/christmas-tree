@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聖誕夜・心願抽獎</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        /* 聖誕樹背景圖片 */
+        .bg-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('Gemini_Generated_Image_v8xzmfv8xzmfv8xz.jpg') no-repeat center center;
+            background-size: cover;
+            z-index: 1;
+        }
+
+        /* 飄雪 Canvas 遮罩 */
+        #snowCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        /* 樹頂星星點擊互動區塊 */
+        .star-hotspot {
+            position: fixed;
+            top: 7%;       /* 依據圖片中星星位置微調 */
+            left: 50%;   /* 置中對齊 */
+            transform: translateX(-50%);
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            z-index: 10;
+            border-radius: 50%;
+            /* 讓星星發光呼吸燈效果 */
+            animation: starGlow 2s infinite ease-in-out;
+        }
+
+        .star-hotspot:hover {
+            transform: translateX(-50%) scale(1.2);
+        }
+
+        @keyframes starGlow {
+            0%, 100% { box-shadow: 0 0 10px rgba(255, 223, 0, 0.4); }
+            50% { box-shadow: 0 0 25px rgba(255, 223, 0, 0.9), 0 0 40px rgba(255, 255, 255, 0.6); }
+        }
+
+        /* 提示文字 */
+        .hint-text {
+            position: fixed;
+            bottom: 30px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 1.1rem;
+            letter-spacing: 2px;
+            z-index: 5;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+            animation: fadeInOut 3s infinite ease-in-out;
+        }
+
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* 抽獎結果彈跳視窗 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background: linear-gradient(135deg, #1a2a3a, #0d1b2a);
+            border: 2px solid #ffd700;
+            border-radius: 20px;
+            padding: 40px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 215, 0, 0.3);
+            transform: scale(0.8);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            color: #fff;
+        }
+
+        .modal-overlay.active .modal-card {
+            transform: scale(1);
+        }
+
+        .modal-card h2 {
+            color: #ffd700;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+
+        .modal-card .wish-content {
+            font-size: 1.4rem;
+            margin: 20px 0;
+            color: #fff;
+            line-height: 1.5;
+        }
+
+        .modal-card .wish-author {
+            font-size: 0.95rem;
+            color: #aaa;
+            margin-bottom: 30px;
+        }
+
+        .modal-close-btn {
+            background: linear-gradient(135deg, #ffd700, #ffa500);
+            color: #1a2a3a;
+            border: none;
+            padding: 10px 30px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .modal-close-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(255, 215, 0, 0.6);
+        }
+
+        .modal-close-btn.hide {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 背景聖誕樹 -->
+    <div class="bg-container"></div>
+
+    <!-- 飄雪特效 Canvas -->
+    <canvas id="snowCanvas"></canvas>
+
+    <!-- 樹頂星星點擊區 -->
+    <div class="star-hotspot" id="starBtn" title="點擊星星抽獎！"></div>
+
+    <!-- 底部提示文字 -->
+    <!--<div class="hint-text">✨ 點擊聖誕樹頂端的星星，抽取你的專屬祝福 ✨</div>-->
+
+    <!-- 得獎彈跳視窗 -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-card">
+            <h2>🎁 聖誕驚喜降臨 🎁</h2>
+            <div class="wish-content" id="modalWish">抽獎中</div>
+            <div class="wish-author" id="modalAuthor"></div>
+            <button class="modal-close-btn hide" id="closeModalBtn">收下禮物</button>
+        </div>
+    </div>
+
+    <script>
+        // 1. 飄雪特效程式碼
+        const canvas = document.getElementById('snowCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const snowflakes = [];
+        const maxSnowflakes = 100;
+
+        for (let i = 0; i < maxSnowflakes; i++) {
+            snowflakes.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                radius: Math.random() * 3 + 1,
+                speedY: Math.random() * 1 + 0.5,
+                speedX: Math.random() * 0.6 - 0.3,
+                opacity: Math.random() * 0.7 + 0.3
+            });
+        }
+
+        function drawSnow() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.beginPath();
+            for (let flake of snowflakes) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${flake.opacity})`;
+                ctx.beginPath();
+                ctx.arc(flake.x, flake.y, flake.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 移動雪花
+                flake.y += flake.speedY;
+                flake.x += flake.speedX;
+
+                // 循環邊界
+                if (flake.y > canvas.height) {
+                    flake.y = 0;
+                    flake.x = Math.random() * canvas.width;
+                }
+                if (flake.x > canvas.width || flake.x < 0) {
+                    flake.x = Math.random() * canvas.width;
+                }
+            }
+            requestAnimationFrame(drawSnow);
+        }
+        drawSnow();
+
+        // 2. 串接 Google Apps Script 進行抽獎
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwy_nUsnmFJ25gwdJtOZPL9p4AE7HAu22LdsTEJxX9aSWdAztgwFtKkrYG9wiYZxf_BJQ/exec"; // <-- 記得替換成你的網址！
+
+        const starBtn = document.getElementById('starBtn');
+        const modalOverlay = document.getElementById('modalOverlay');
+        const modalWish = document.getElementById('modalWish');
+        const modalAuthor = document.getElementById('modalAuthor');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+
+        starBtn.addEventListener('click', async () => {
+            modalWish.textContent = "抽獎中...";
+            modalAuthor.textContent = "";
+
+            // 剛點擊時，先藏起「收下禮物」按鈕
+            closeModalBtn.classList.add('hide'); 
+            modalOverlay.classList.add('active');
+
+            try {
+                // 發送請求給 Google Apps Script 抓取隨機願望
+                let response = await fetch(WEB_APP_URL);
+                let data = await response.json();
+
+                // 顯示抽獎結果
+                modalWish.textContent = `「 ${data.wish} 」`;
+                modalAuthor.textContent = `—— 來自：${data.author}`;
+                
+                // 成功拿到資料後，把「收下禮物」按鈕顯示出來！
+                closeModalBtn.classList.remove('hide');
+            } catch (error) {
+                console.error("抽獎失敗：", error);
+                modalWish.textContent = "哎呀！連結雪國訊號失敗了，再試一次吧！";
+                modalAuthor.textContent = "";
+            }
+        });
+
+        // 關閉彈跳視窗
+        closeModalBtn.addEventListener('click', () => {
+            modalOverlay.classList.remove('active');
+        });
+
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) {
+                modalOverlay.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
